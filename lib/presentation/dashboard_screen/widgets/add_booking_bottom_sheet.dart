@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
+import '../../../services/supabase_service.dart';
 import 'dashboard_header_widget.dart';
 
 class AddBookingBottomSheet extends StatefulWidget {
@@ -14,7 +15,6 @@ class AddBookingBottomSheet extends StatefulWidget {
 }
 
 class _AddBookingBottomSheetState extends State<AddBookingBottomSheet> {
-  // TODO: Replace with [Riverpod/Bloc] for production
   final _formKey = GlobalKey<FormState>();
   final _clientNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -25,7 +25,7 @@ class _AddBookingBottomSheetState extends State<AddBookingBottomSheet> {
 
   String _selectedEventType = 'Wedding';
   DateTime? _selectedDate;
-  String _selectedFunctionTime = 'Day'; // 'Day' or 'Night'
+  String _selectedFunctionTime = 'Day';
   bool _isSubmitting = false;
 
   final List<String> _eventTypes = [
@@ -95,16 +95,42 @@ class _AddBookingBottomSheetState extends State<AddBookingBottomSheet> {
     }
     setState(() => _isSubmitting = true);
 
-    await Future.delayed(const Duration(milliseconds: 400));
+    final advance = double.tryParse(_advanceCtrl.text.trim()) ?? 0.0;
+    final total = double.tryParse(_totalAmountCtrl.text.trim()) ?? 0.0;
 
-    if (mounted) {
-      final advance = double.tryParse(_advanceCtrl.text.trim()) ?? 0.0;
-      final total = double.tryParse(_totalAmountCtrl.text.trim()) ?? 0.0;
+    if (widget.existingBooking == null) {
+      // Add new booking
+      final bookingId = await SupabaseService.instance.generateNextBookingId();
+      final newBooking = {
+        'id': bookingId,
+        'clientName': _clientNameCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'eventType': _selectedEventType,
+        'eventDate': _selectedDate!,
+        'functionTime': _selectedFunctionTime,
+        'guestCount': int.tryParse(_guestCountCtrl.text.trim()) ?? 0,
+        'totalAmount': total,
+        'advancePaid': advance,
+        'status': 'confirmed',
+        'notes': _notesCtrl.text.trim(),
+      };
 
-      if (widget.existingBooking == null) {
-        // Add new booking
-        final newBooking = {
-          'id': 'BK${DateTime.now().millisecondsSinceEpoch % 100000}',
+      // Save to Supabase
+      final saved = await SupabaseService.instance.insertBooking(newBooking);
+      if (saved != null) {
+        allBookingsMockData.add(saved);
+      } else {
+        // Fallback: keep in memory even if Supabase fails
+        allBookingsMockData.add(newBooking);
+      }
+    } else {
+      // Update existing booking
+      final idx = allBookingsMockData.indexWhere(
+        (b) => b['id'] == widget.existingBooking!['id'],
+      );
+      if (idx != -1) {
+        final updated = {
+          ...allBookingsMockData[idx],
           'clientName': _clientNameCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
           'eventType': _selectedEventType,
@@ -113,31 +139,14 @@ class _AddBookingBottomSheetState extends State<AddBookingBottomSheet> {
           'guestCount': int.tryParse(_guestCountCtrl.text.trim()) ?? 0,
           'totalAmount': total,
           'advancePaid': advance,
-          'status': 'confirmed',
           'notes': _notesCtrl.text.trim(),
         };
-        allBookingsMockData.add(newBooking);
-      } else {
-        // Update existing booking
-        final idx = allBookingsMockData.indexWhere(
-          (b) => b['id'] == widget.existingBooking!['id'],
-        );
-        if (idx != -1) {
-          allBookingsMockData[idx] = {
-            ...allBookingsMockData[idx],
-            'clientName': _clientNameCtrl.text.trim(),
-            'phone': _phoneCtrl.text.trim(),
-            'eventType': _selectedEventType,
-            'eventDate': _selectedDate!,
-            'functionTime': _selectedFunctionTime,
-            'guestCount': int.tryParse(_guestCountCtrl.text.trim()) ?? 0,
-            'totalAmount': total,
-            'advancePaid': advance,
-            'notes': _notesCtrl.text.trim(),
-          };
-        }
+        allBookingsMockData[idx] = updated;
+        await SupabaseService.instance.updateBooking(updated);
       }
+    }
 
+    if (mounted) {
       setState(() => _isSubmitting = false);
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(

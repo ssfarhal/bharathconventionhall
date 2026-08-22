@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
+import '../../../services/supabase_service.dart';
 
 class DashboardHeaderWidget extends StatelessWidget {
   final String greeting;
@@ -9,7 +10,6 @@ class DashboardHeaderWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final now = DateTime.now();
     final todayBookings = _getTodayBookings();
     final isBooked = todayBookings.isNotEmpty;
@@ -180,8 +180,36 @@ class DashboardHeaderWidget extends StatelessWidget {
   }
 }
 
-// Shared mock data — used across dashboard widgets
-// TODO: Replace with [Riverpod/Bloc] shared state for production
+// Shared in-memory booking list — backed by Supabase
 final List<Map<String, dynamic>> _allBookings = [];
+bool _bookingsLoaded = false;
 
 List<Map<String, dynamic>> get allBookingsMockData => _allBookings;
+
+/// Load bookings from Supabase into the in-memory list.
+/// Safe to call multiple times — only loads once per session.
+Future<void> loadBookingsFromStorage() async {
+  if (_bookingsLoaded) return;
+  _bookingsLoaded = true;
+  try {
+    final saved = await SupabaseService.instance.fetchBookings();
+    _allBookings.clear();
+    _allBookings.addAll(saved);
+  } catch (_) {
+    // Supabase unavailable — start with empty list
+  }
+}
+
+/// Force reload bookings from Supabase (used on pull-to-refresh).
+Future<void> reloadBookingsFromStorage() async {
+  try {
+    final saved = await SupabaseService.instance.fetchBookings();
+    _allBookings.clear();
+    _allBookings.addAll(saved);
+  } catch (_) {}
+}
+
+/// Legacy alias kept for compatibility — no-op since Supabase persists immediately.
+Future<void> saveBookingsToStorage() async {
+  // No-op: each mutation calls Supabase directly; in-memory list stays in sync.
+}

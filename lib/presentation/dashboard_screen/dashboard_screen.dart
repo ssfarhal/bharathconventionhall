@@ -59,13 +59,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 scrolledUnderElevation: 1,
                 floating: true,
                 snap: true,
-                title: Text(
-                  'Bharath Convention Hall',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primary,
-                  ),
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      'assets/images/bharath_Logo-1787316700785.png',
+                      height: 36,
+                      width: 36,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Bharath Convention Hall',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ],
                 ),
                 actions: [
                   IconButton(

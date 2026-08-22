@@ -169,6 +169,10 @@ class _UpcomingBookingCard extends StatelessWidget {
                           color: const Color(0xFF9E9E9E),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      _functionTimeChip(
+                        booking['functionTime'] as String? ?? 'Day',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -248,6 +252,40 @@ class _UpcomingBookingCard extends StatelessWidget {
     );
   }
 
+  Widget _functionTimeChip(String functionTime) {
+    final isNight = functionTime == 'Night';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isNight
+            ? const Color(0xFF1A237E).withAlpha(20)
+            : const Color(0xFFF57F17).withAlpha(20),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isNight ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+            size: 10,
+            color: isNight ? const Color(0xFF3949AB) : const Color(0xFFF57F17),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            isNight ? 'Night' : 'Day',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isNight
+                  ? const Color(0xFF3949AB)
+                  : const Color(0xFFF57F17),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _monthShort(int m) {
     const months = [
       '',
@@ -268,8 +306,11 @@ class _UpcomingBookingCard extends StatelessWidget {
   }
 
   String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
-    return v.toStringAsFixed(0);
+    final intVal = v.round();
+    final formatted = intVal.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+    return '$formatted/-';
   }
 }

@@ -80,9 +80,12 @@ class DashboardKpiRowWidget extends StatelessWidget {
   }
 
   String _formatAmount(double amount) {
-    if (amount >= 100000) return '${(amount / 100000).toStringAsFixed(1)}L';
-    if (amount >= 1000) return '${(amount / 1000).toStringAsFixed(0)}K';
-    return amount.toStringAsFixed(0);
+    final intVal = amount.round();
+    final formatted = intVal.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+    return '$formatted/-';
   }
 }
 

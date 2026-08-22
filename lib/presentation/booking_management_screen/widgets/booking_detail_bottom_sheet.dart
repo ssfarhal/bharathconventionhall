@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/app_export.dart';
+import '../../../services/supabase_service.dart';
 import '../../dashboard_screen/widgets/add_booking_bottom_sheet.dart';
 import '../../dashboard_screen/widgets/dashboard_header_widget.dart';
 
@@ -23,6 +24,28 @@ class BookingDetailBottomSheet extends StatefulWidget {
 class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
   late Map<String, dynamic> _booking;
 
+  static const String _defaultTermsAndConditions =
+      'RENTAL TERMS & CONDITIONS\n'
+      '\n'
+      '1. EXTRA CHARGES (Not Included in Standard Rent)\n'
+      'The following items are billed separately if used: Generator, Cooler, Chair Covers, Speakers, Vegetarian Dining Hall.\n'
+      '\n'
+      '2. SECURITY DEPOSIT FOR EQUIPMENT\n'
+      'A refundable deposit of ₹25,000 must be paid in advance if any equipment or appliances are taken or used from the premises. This will be refunded after the event, provided there is no damage, loss, or missing items.\n'
+      '\n'
+      '3. RENTAL TIMINGS\n'
+      'Morning Shift: 5:00 AM – 5:00 PM\n'
+      'Night Shift: 5:00 PM – 12:00 Midnight\n'
+      'Note: Please adhere to the above timings. Any extensions must be approved in advance.\n'
+      '\n'
+      '4. RULES & DAMAGE LIABILITY\n'
+      'Management will inspect the venue and equipment before and after the event. The client is fully responsible for any damage or loss caused to the venue, furniture, or appliances during the rental period.\n'
+      '\n'
+      '5. Personal Belongings & Valuables\n'
+      'Guests must take care of their own belongings at all times. '
+      'Management is not responsible for any loss, theft, or damage to personal items like cash, gold, mobile phones,laptops, cameras, tablet or other valuable items. '
+      'Guests are advised to keep their valuables secure,Strictly speaking, management is not responsible.';
+
   @override
   void initState() {
     super.initState();
@@ -30,12 +53,22 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
   }
 
   String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(0);
+    final intVal = v.round();
+    final formatted = intVal.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+    return '$formatted/-';
   }
 
-  String _fmtFull(double v) => v.toStringAsFixed(2);
+  String _fmtFull(double v) {
+    final intVal = v.round();
+    final formatted = intVal.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+    return '$formatted/-';
+  }
 
   String _formatDateFull(DateTime d) {
     const months = [
@@ -146,6 +179,11 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
     setState(() {
       _booking['status'] = 'cancelled';
     });
+    // Persist to Supabase
+    SupabaseService.instance.updateBookingStatus(
+      _booking['id'] as String,
+      'cancelled',
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -228,7 +266,10 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
   }
 
   void _deleteBooking() {
-    allBookingsMockData.removeWhere((b) => b['id'] == _booking['id']);
+    final id = _booking['id'] as String;
+    allBookingsMockData.removeWhere((b) => b['id'] == id);
+    // Persist to Supabase
+    SupabaseService.instance.deleteBooking(id);
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -240,19 +281,305 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
     );
   }
 
-  void _generateInvoice() {
+  Future<void> _collectBalance() async {
+    final total = (_booking['totalAmount'] as double?) ?? 0.0;
+    final advance = (_booking['advancePaid'] as double?) ?? 0.0;
+    final balance = total - advance;
+
+    if (balance <= 0) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.successContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.payments_outlined,
+                color: AppTheme.success,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Collect Balance',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Mark balance of ₹${_fmtFull(balance)} as collected from "${_booking['clientName']}"?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: const Color(0xFF5A4A50),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.successContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: AppTheme.success,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This will update the advance paid to the full total amount.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: AppTheme.success,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF9E9E9E),
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.success,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              'Confirm Collection',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _booking['advancePaid'] = total;
+      });
+      final idx = allBookingsMockData.indexWhere(
+        (b) => b['id'] == _booking['id'],
+      );
+      if (idx != -1) {
+        allBookingsMockData[idx]['advancePaid'] = total;
+      }
+      await SupabaseService.instance.updateBooking(_booking);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Balance of ₹${_fmtFull(balance)} collected successfully!',
+            ),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _generateInvoice() async {
+    final total = (_booking['totalAmount'] as double?) ?? 0.0;
+    final advance = (_booking['advancePaid'] as double?) ?? 0.0;
+    final balance = total - advance;
+
+    // If there is a balance due, ask whether to collect it before generating
+    bool balanceCollected = false;
+    double effectiveAdvance = advance;
+
+    if (balance > 0 && mounted) {
+      final result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.successContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.payments_outlined,
+                  color: AppTheme.success,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Balance Collection',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'There is a pending balance of ₹${_fmtFull(balance)}.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  color: const Color(0xFF5A4A50),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Has the balance been collected from the client?',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1A1A1A),
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'skip'),
+              child: Text(
+                'Not Yet',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF9E9E9E),
+                ),
+              ),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'invoice_only'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+                side: const BorderSide(color: AppTheme.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                'Generate Only',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+              ),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'collect'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.success,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                'Collected ✓',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'collect') {
+        balanceCollected = true;
+        effectiveAdvance = total; // fully paid
+        // Update booking in memory and persist
+        setState(() {
+          _booking['advancePaid'] = total;
+        });
+        final idx = allBookingsMockData.indexWhere(
+          (b) => b['id'] == _booking['id'],
+        );
+        if (idx != -1) {
+          allBookingsMockData[idx]['advancePaid'] = total;
+        }
+        await SupabaseService.instance.updateBooking(_booking);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Balance marked as collected!'),
+              backgroundColor: AppTheme.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      } else if (result == null) {
+        // Dialog dismissed — do nothing
+        return;
+      }
+      // 'skip' or 'invoice_only' → generate invoice with existing balance
+    }
+
+    // Show Terms & Conditions editor before generating invoice
+    if (!mounted) return;
+    final termsController = TextEditingController(
+      text: _defaultTermsAndConditions,
+    );
+    final termsResult = await showDialog<String>(
+      context: context,
+      builder: (ctx) => _TermsEditorDialog(controller: termsController),
+    );
+    termsController.dispose();
+
+    if (termsResult == null) return; // User cancelled
+
     final date = _booking['eventDate'] as DateTime;
     final clientName = _booking['clientName'] as String;
     final phone = _booking['phone'] as String? ?? '';
     final eventType = _booking['eventType'] as String;
     final guestCount = _booking['guestCount'] as int? ?? 0;
-    final total = (_booking['totalAmount'] as double?) ?? 0.0;
-    final advance = (_booking['advancePaid'] as double?) ?? 0.0;
-    final balance = total - advance;
     final notes = _booking['notes'] as String? ?? '';
     final status = _booking['status'] as String;
     final bookingId = _booking['id'] as String? ?? 'N/A';
     final invoiceDate = DateTime.now();
+    final effectiveBalance = total - effectiveAdvance;
 
     final htmlContent = _buildInvoiceHtml(
       clientName: clientName,
@@ -260,16 +587,40 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
       eventType: eventType,
       guestCount: guestCount,
       total: total,
-      advance: advance,
-      balance: balance,
+      advance: effectiveAdvance,
+      balance: effectiveBalance,
       notes: notes,
       status: status,
       bookingId: bookingId,
       date: date,
       invoiceDate: invoiceDate,
+      balanceCollected: balanceCollected,
+      termsAndConditions: termsResult,
     );
 
-    _downloadInvoice(htmlContent, 'Invoice_${bookingId}_$clientName.html');
+    final invoiceData = {
+      'clientName': clientName,
+      'phone': phone,
+      'eventType': eventType,
+      'guestCount': guestCount,
+      'totalAmount': total,
+      'advance': effectiveAdvance,
+      'balance': effectiveBalance,
+      'notes': notes,
+      'status': status,
+      'bookingId': bookingId,
+      'eventDateStr': _formatDateFull(date),
+      'invoiceDateStr':
+          '${invoiceDate.day}/${invoiceDate.month}/${invoiceDate.year}',
+      'termsAndConditions': termsResult,
+      'functionTime': (_booking['functionTime'] as String?) ?? '',
+    };
+
+    await _downloadInvoice(
+      htmlContent,
+      'Invoice_${bookingId}_$clientName',
+      invoiceData: invoiceData,
+    );
   }
 
   String _buildInvoiceHtml({
@@ -285,7 +636,17 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
     required String bookingId,
     required DateTime date,
     required DateTime invoiceDate,
+    bool balanceCollected = false,
+    String termsAndConditions = '',
   }) {
+    final termsHtml = termsAndConditions.trim().isNotEmpty
+        ? termsAndConditions
+              .split('\n')
+              .where((line) => line.trim().isNotEmpty)
+              .map((line) => '<li>${line.trim()}</li>')
+              .join('\n')
+        : '';
+
     return '''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -319,6 +680,9 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
   .total-row td { font-weight: 700; font-size: 15px; border-top: 2px solid #eee; border-bottom: none; }
   .balance-row td { color: ${balance > 0 ? '#f57f17' : '#2e7d32'}; }
   .notes-box { background: #fafafa; border-radius: 8px; padding: 14px; font-size: 13px; color: #5a4a50; line-height: 1.6; }
+  .terms-list { list-style: none; padding: 0; margin: 0; }
+  .terms-list li { font-size: 12px; color: #5a4a50; line-height: 1.7; padding: 4px 0; border-bottom: 1px dashed #f0f0f0; }
+  .terms-list li:last-child { border-bottom: none; }
   .footer { padding: 20px 40px; text-align: center; font-size: 12px; color: #9e9e9e; background: #fafafa; }
   @media print { body { background: white; } .page { box-shadow: none; margin: 0; border-radius: 0; } }
 </style>
@@ -332,7 +696,7 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
   <div class="invoice-meta">
     <div class="meta-block">
       <label>Invoice No.</label>
-      <p>INV-$bookingId</p>
+      <p>$bookingId</p>
     </div>
     <div class="meta-block">
       <label>Invoice Date</label>
@@ -415,6 +779,13 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
     <div class="notes-box">$notes</div>
   </div>''' : ''}
 
+  ${termsHtml.isNotEmpty ? '''<div class="section">
+    <h2>Terms &amp; Conditions</h2>
+    <ul class="terms-list">
+$termsHtml
+    </ul>
+  </div>''' : ''}
+
   <div class="footer">
     <p>Thank you for choosing Bharath Convention Hall</p>
     <p style="margin-top:4px">This is a computer-generated invoice. For queries, please contact the hall management.</p>
@@ -435,12 +806,12 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
     final balance = total - advance;
 
     final subject = Uri.encodeComponent(
-      'Invoice INV-$bookingId — Bharath Convention Hall',
+      'Invoice $bookingId — Bharath Convention Hall',
     );
     final body = Uri.encodeComponent(
       'Dear $clientName,\n\n'
       'Please find below your booking invoice details:\n\n'
-      'Booking ID: INV-$bookingId\n'
+      'Booking ID: $bookingId\n'
       'Event Type: $eventType\n'
       'Event Date: ${_formatDateFull(date)}\n'
       'Total Amount: ₹${_fmtFull(total)}\n'
@@ -465,7 +836,7 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
     );
   }
 
-  void _printInvoice() {
+  Future<void> _printInvoice() async {
     final date = _booking['eventDate'] as DateTime;
     final clientName = _booking['clientName'] as String;
     final phone = _booking['phone'] as String? ?? '';
@@ -494,36 +865,12 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
       invoiceDate: invoiceDate,
     );
 
-    invoice_web.InvoiceDownloader.print(htmlContent);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Opening print dialog…'),
-        backgroundColor: AppTheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  void _downloadInvoice(String htmlContent, String filename) {
     if (kIsWeb) {
-      try {
-        _triggerWebDownload(htmlContent, filename);
+      invoice_web.InvoiceDownloader.print(htmlContent);
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invoice downloaded: $filename'),
-            backgroundColor: AppTheme.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Invoice ready. Check your downloads folder.'),
+            content: const Text('Opening print dialog…'),
             backgroundColor: AppTheme.primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -533,22 +880,90 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
         );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Invoice generated successfully.'),
-          backgroundColor: AppTheme.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+      await invoice_web.InvoiceDownloader.print(htmlContent);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Share the invoice to print or save it.'),
+            backgroundColor: AppTheme.primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-        ),
-      );
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadInvoice(
+    String htmlContent,
+    String filename, {
+    Map<String, dynamic>? invoiceData,
+  }) async {
+    if (kIsWeb) {
+      try {
+        await _triggerWebDownload(htmlContent, '$filename.html');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Invoice downloaded: $filename.html'),
+              backgroundColor: AppTheme.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Invoice ready. Check your downloads folder.',
+              ),
+              backgroundColor: AppTheme.primary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      }
+    } else {
+      if (invoiceData != null) {
+        await invoice_web.InvoiceDownloader.downloadPdf(
+          invoiceData,
+          '$filename.pdf',
+        );
+      } else {
+        await invoice_web.InvoiceDownloader.download(
+          htmlContent,
+          '$filename.html',
+        );
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'PDF Invoice ready — choose where to save or share it.',
+            ),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
     }
   }
 
   // ignore: avoid_web_libraries_in_flutter
-  void _triggerWebDownload(String htmlContent, String filename) {
-    invoice_web.InvoiceDownloader.download(htmlContent, filename);
+  Future<void> _triggerWebDownload(String htmlContent, String filename) async {
+    await invoice_web.InvoiceDownloader.download(htmlContent, filename);
   }
 
   @override
@@ -732,6 +1147,8 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
                         advance: advance,
                         balance: balance,
                         eventColor: eventColor,
+                        functionTime:
+                            _booking['functionTime'] as String? ?? 'Day',
                       ),
                       const SizedBox(height: 20),
                       // Contact section
@@ -760,6 +1177,9 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
                         total: total,
                         advance: advance,
                         balance: balance,
+                        onCollectBalance: balance > 0 && !isCancelled
+                            ? _collectBalance
+                            : null,
                       ),
                       if (notes.isNotEmpty) ...[
                         const SizedBox(height: 20),
@@ -784,36 +1204,28 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
                       ],
                       const SizedBox(height: 24),
                       // Invoice button — always visible
-                      kIsWeb
-                          ? SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _generateInvoice,
-                                icon: const Icon(
-                                  Icons.receipt_long_outlined,
-                                  size: 18,
-                                ),
-                                label: const Text('Download Invoice'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppTheme.primary,
-                                  side: const BorderSide(
-                                    color: AppTheme.primary,
-                                    width: 1.5,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : _InvoiceActionsWidget(
-                              onEmail: _emailInvoice,
-                              onPrint: _printInvoice,
-                              onDownload: _generateInvoice,
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _generateInvoice,
+                          icon: const Icon(
+                            Icons.receipt_long_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Download Invoice'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.primary,
+                            side: const BorderSide(
+                              color: AppTheme.primary,
+                              width: 1.5,
                             ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       // Action buttons row
                       if (!isCancelled)
@@ -884,6 +1296,8 @@ class _BookingDetailBottomSheetState extends State<BookingDetailBottomSheet> {
                                     allBookingsMockData[idx]['status'] =
                                         'completed';
                                   }
+                                  // Persist to local storage
+                                  saveBookingsToStorage();
                                   Navigator.pop(context);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
@@ -1138,6 +1552,7 @@ class _BookingInfoGrid extends StatelessWidget {
   final double advance;
   final double balance;
   final Color eventColor;
+  final String functionTime;
 
   const _BookingInfoGrid({
     required this.date,
@@ -1146,12 +1561,20 @@ class _BookingInfoGrid extends StatelessWidget {
     required this.advance,
     required this.balance,
     required this.eventColor,
+    required this.functionTime,
   });
 
   @override
   Widget build(BuildContext context) {
     final cells = [
       {'label': 'Event Date', 'value': _formatDate(date), 'isAccent': false},
+      {
+        'label': 'Function Time',
+        'value': functionTime == 'Night'
+            ? '🌙 Night Function'
+            : '☀️ Day Function',
+        'isAccent': false,
+      },
       {
         'label': 'Guest Count',
         'value': '$guestCount guests',
@@ -1231,6 +1654,34 @@ class _BookingInfoGrid extends StatelessWidget {
               ),
             ],
           ),
+          Container(height: 1, color: AppTheme.outlineVariantLight),
+          Row(
+            children: [
+              Expanded(
+                child: _GridCell(
+                  cell: cells[4],
+                  eventColor: eventColor,
+                  isTop: false,
+                  isLeft: true,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 64,
+                color: AppTheme.outlineVariantLight,
+              ),
+              Expanded(
+                child: Container(
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      bottomRight: Radius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1257,9 +1708,12 @@ class _BookingInfoGrid extends StatelessWidget {
   }
 
   String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(0);
+    final intVal = v.round();
+    final formatted = intVal.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+    return '$formatted/-';
   }
 }
 
@@ -1396,11 +1850,13 @@ class _PaymentSummaryCard extends StatelessWidget {
   final double total;
   final double advance;
   final double balance;
+  final VoidCallback? onCollectBalance;
 
   const _PaymentSummaryCard({
     required this.total,
     required this.advance,
     required this.balance,
+    this.onCollectBalance,
   });
 
   @override
@@ -1477,15 +1933,41 @@ class _PaymentSummaryCard extends StatelessWidget {
               ),
             ],
           ),
+          if (onCollectBalance != null) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onCollectBalance,
+                icon: const Icon(Icons.payments_outlined, size: 18),
+                label: Text(
+                  'Collect Balance  ₹${_fmt(balance)}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.success,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
   String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(0);
+    final intVal = v.round();
+    final formatted = intVal.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+    return '$formatted/-';
   }
 }
 
@@ -1525,6 +2007,150 @@ class _PaymentRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Dialog that lets the owner review and edit Terms & Conditions before
+/// the invoice is generated. Returns the edited text or null if cancelled.
+class _TermsEditorDialog extends StatefulWidget {
+  final TextEditingController controller;
+
+  const _TermsEditorDialog({required this.controller});
+
+  @override
+  State<_TermsEditorDialog> createState() => _TermsEditorDialogState();
+}
+
+class _TermsEditorDialogState extends State<_TermsEditorDialog> {
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withAlpha(26),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.gavel_rounded,
+                    color: AppTheme.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Terms & Conditions',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Review and edit the terms before generating the invoice. Each line will appear as a separate point.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: const Color(0xFF9E9E9E),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 300),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFFFAFAFA),
+              ),
+              child: TextField(
+                controller: widget.controller,
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: const Color(0xFF1A1A1A),
+                  height: 1.6,
+                ),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.all(12),
+                  border: InputBorder.none,
+                  hintText: 'Enter terms and conditions...',
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: const Color(0xFFBDBDBD),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF9E9E9E),
+                      side: const BorderSide(color: Color(0xFFE0E0E0)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        Navigator.pop(context, widget.controller.text),
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: Text(
+                      'Download',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

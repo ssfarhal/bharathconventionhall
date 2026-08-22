@@ -173,10 +173,8 @@ class _CalendarDayCell extends StatelessWidget {
             Text(
               '${date.day}',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: isToday || isBooked
-                    ? FontWeight.w700
-                    : FontWeight.w400,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
                 color: textColor,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),

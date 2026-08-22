@@ -3,11 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
+import './services/supabase_service.dart';
 import './widgets/custom_error_widget.dart';
 import 'core/app_export.dart';
+import 'presentation/dashboard_screen/widgets/dashboard_header_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase
+  try {
+    await SupabaseService.initialize();
+  } catch (e) {
+    debugPrint('Failed to initialize Supabase: $e');
+  }
 
   bool hasShownError = false;
 
@@ -31,6 +40,9 @@ void main() async {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   }
 
+  // Load persisted bookings from Supabase before the app renders
+  await loadBookingsFromStorage();
+
   GoRouter.optionURLReflectsImperativeAPIs = true;
   runApp(const MyApp());
 }
@@ -43,7 +55,7 @@ class MyApp extends StatelessWidget {
     return Sizer(
       builder: (context, orientation, screenType) {
         return MaterialApp.router(
-          title: 'bharathconventionhall',
+          title: 'Bharath Convention Hall',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.light,

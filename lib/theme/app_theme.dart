@@ -51,20 +51,20 @@ class AppTheme {
     scaffoldBackgroundColor: backgroundLight,
     textTheme: GoogleFonts.plusJakartaSansTextTheme(
       const TextTheme(
-        displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
-        displayMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-        headlineLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-        headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-        headlineSmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        titleSmall: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
-        bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
-        bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        displayLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        displayMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        headlineLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        headlineSmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        titleMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        titleSmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        bodyLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        bodyMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        bodySmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        labelLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        labelMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        labelSmall: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
       ),
     ),
     appBarTheme: AppBarThemeData(
@@ -74,7 +74,7 @@ class AppTheme {
       centerTitle: true,
       iconTheme: const IconThemeData(color: primary),
       titleTextStyle: GoogleFonts.plusJakartaSans(
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: FontWeight.w600,
         color: const Color(0xFF1A1A1A),
       ),
@@ -91,13 +91,13 @@ class AppTheme {
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return GoogleFonts.plusJakartaSans(
-            fontSize: 12,
+            fontSize: 20,
             fontWeight: FontWeight.w600,
             color: primary,
           );
         }
         return GoogleFonts.plusJakartaSans(
-          fontSize: 12,
+          fontSize: 20,
           fontWeight: FontWeight.w400,
           color: const Color(0xFF9E9E9E),
         );
@@ -148,7 +148,7 @@ class AppTheme {
       backgroundColor: surfaceVariantLight,
       selectedColor: primaryContainer,
       labelStyle: GoogleFonts.plusJakartaSans(
-        fontSize: 13,
+        fontSize: 20,
         fontWeight: FontWeight.w500,
       ),
       side: const BorderSide(color: outlineLight),
@@ -195,28 +195,28 @@ class AppTheme {
     textTheme: GoogleFonts.plusJakartaSansTextTheme(
       const TextTheme(
         displayLarge: TextStyle(
-          fontSize: 32,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
           color: Color(0xFFE6E6E6),
         ),
         headlineMedium: TextStyle(
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
           color: Color(0xFFE6E6E6),
         ),
         titleMedium: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
           color: Color(0xFFE6E6E6),
         ),
         bodyMedium: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
           color: Color(0xFFE6E6E6),
         ),
         bodySmall: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
           color: Color(0xFFBBADB2),
         ),
       ),
@@ -227,7 +227,7 @@ class AppTheme {
       scrolledUnderElevation: 1,
       centerTitle: true,
       titleTextStyle: GoogleFonts.plusJakartaSans(
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: FontWeight.w600,
         color: const Color(0xFFE6E6E6),
       ),
@@ -243,13 +243,13 @@ class AppTheme {
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
           return GoogleFonts.plusJakartaSans(
-            fontSize: 12,
+            fontSize: 20,
             fontWeight: FontWeight.w600,
             color: primary,
           );
         }
         return GoogleFonts.plusJakartaSans(
-          fontSize: 12,
+          fontSize: 20,
           fontWeight: FontWeight.w400,
           color: const Color(0xFF9E9E9E),
         );
